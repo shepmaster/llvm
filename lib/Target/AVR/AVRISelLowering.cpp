@@ -1377,7 +1377,24 @@ AVRTargetLowering::LowerReturn(SDValue Chain, CallingConv::ID CallConv,
   // Reverse splitted return values to get the "big endian" format required
   // to agree with the calling convention ABI.
   if (e > 1) {
-    std::reverse(RVLocs.begin(), RVLocs.end());
+    // some hackery because SelectionDAGBuilder does not split up arguments properly
+    Type *retType = MF.getFunction().getReturnType();
+    if (retType->isStructTy()) {
+      if (retType->getNumContainedTypes() > 1 && retType->getNumContainedTypes() > e) {
+        for (unsigned i = 0, pos = 0; i < retType->getNumContainedTypes(); ++i) {
+          Type *field = retType->getContainedType(i);
+          if(field->isIntegerTy() && field->getIntegerBitWidth() > 16) {
+            int Size = field->getIntegerBitWidth() / 16;
+            std::reverse(RVLocs.begin()+ pos, RVLocs.end() + pos + Size);
+            pos += Size;
+          } else {
+            pos++;
+          }
+        }
+      }
+    } else {
+      std::reverse(RVLocs.begin(), RVLocs.end());
+    }
   }
 
   SDValue Flag;
